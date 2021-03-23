@@ -2,7 +2,8 @@ package com.example.sensortag
 
 import android.bluetooth.*
 import android.os.Bundle
-import android.util.Log
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.sensortag.databinding.ActivityDeviceBinding
@@ -19,10 +20,6 @@ private val UUID_TempData= UUID.fromString("f000aa01-0451-4000-b000-000000000000
 private val UUID_TempConfig= UUID.fromString("f000aa02-0451-4000-b000-000000000000")
 private val UUID_TempService= UUID.fromString("f000aa00-0451-4000-b000-000000000000")
 
-/*private val UUID_Lux_Service=UUID.fromString("f000aa70-0451-4000-b000-000000000000")
-private val UUID_Lux_Config=UUID.fromString("f000aa72-0451-4000-b000-000000000000")
-private val UUID_Lux_Data=UUID.fromString("f000aa71-0451-4000-b000-000000000000")*/
-
 class DeviceActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityDeviceBinding;
@@ -30,61 +27,46 @@ class DeviceActivity : AppCompatActivity() {
     private var bleGatt : BluetoothGatt? = null;
     private var bleService : BluetoothGattService? = null;
 
+    fun enableTempSensor(){
+        Handler(Looper.getMainLooper()).postDelayed({
+            writeConfig(UUID_TempService, UUID_TempConfig)
 
+        },100)
+        Handler(Looper.getMainLooper()).postDelayed({
+            enableNotification(UUID_TempService, UUID_TempData)
+        },200)
+    }
+
+    fun  convertTemptoCelsius(value:Int):Double {
+        var temp=value shr 2;
+        return temp*0.03125;
+    }
 
     fun connect(bleDevice: BluetoothDevice){
         bleDevice.connectGatt(this, false, mGattCallback)
     }
 
-    fun dissconnect(){
-
-    }
-
-    fun char(){
-        bleGatt?.services?.forEach { service ->
-            val characteristicsTable = service.characteristics.joinToString(
-                separator = "\n|--",
-                prefix = "|--"
-            ) { char ->
-                var description = "${char.uuid}"
-                if (char.descriptors.isNotEmpty()) {
-                    description += "\n" + char.descriptors.joinToString(
-                        separator = "\n|------",
-                        prefix = "|------"
-                    ) { descriptor ->
-                        "${descriptor.uuid}"
-                    }
-                }
-                description
-            }
-            Log.i("service","Service ${service.uuid}\nCharacteristics:\n$characteristicsTable")
-        }
+    fun disconnect(){
+        bleGatt?.disconnect();
     }
 
     fun writeConfig(service_UUID:UUID, config_UUID: UUID){
         bleService = bleGatt?.getService(service_UUID)
         val characteristic = bleService?.getCharacteristic(config_UUID)
         val setValueSuccess = characteristic?.setValue(byteArrayOf(0x01))
-        Log.i("CONF_LOCAL", setValueSuccess.toString())
-        characteristic?.writeType=BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-        Thread.sleep(1000)
         val writeSuccess = bleGatt?.writeCharacteristic(characteristic)//writesucces wordt false
-        Log.i("CONF_WRITE", writeSuccess.toString())
     }
 
     fun enableNotification(service_UUID:UUID, char_UUID: UUID){
         bleService = bleGatt?.getService(service_UUID)
         val characteristic = bleService?.getCharacteristic(char_UUID)
         bleGatt?.setCharacteristicNotification(characteristic, true)
-        Log.d("debug","hier raak ik $characteristic ${char_UUID.toString()}")
-
         val descriptor = characteristic?.getDescriptor(UUID_CLIENT_CHARACTERISTIC_CONFIG)
         descriptor?.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
         bleGatt?.writeDescriptor(descriptor)
     }
 
     fun setConnectionState(device: BluetoothDevice, state: Int){
-        Log.d("connect", "${device?.name}")
         binding.tvName.text = device.name
         binding.tvAdress.text = device.address
         binding.tvState.text = if (state == 2)
@@ -99,9 +81,12 @@ class DeviceActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         val device = intent.getParcelableExtra<BluetoothDevice>("device")
-        Log.d("debug", "${device?.name}")
         btDevice=device!!
         connect(btDevice)
+
+        binding.dissconnectBtn.setOnClickListener {
+            disconnect()
+        }
     }
 
     private val mGattCallback = object : BluetoothGattCallback() {
@@ -109,30 +94,25 @@ class DeviceActivity : AppCompatActivity() {
         override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
             super.onConnectionStateChange(gatt, status, newState)
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                Log.i("DeviceActivity", "Connected to GATT server.");
-                Log.i("CONF_LOCAL", "connected")
                 bleGatt=gatt!!;
                 gatt.discoverServices()
-                Log.i("services", "${btDevice.name}")
                 runOnUiThread(Runnable {
                     Toast.makeText(this@DeviceActivity, "Connected", Toast.LENGTH_SHORT).show()
                     setConnectionState(btDevice,newState)
                 })
+            }else if (newState== BluetoothProfile.STATE_DISCONNECTED){
+                runOnUiThread(Runnable {
+                    Toast.makeText(this@DeviceActivity, "Disconnected", Toast.LENGTH_SHORT).show()
+                })
+                finish()
             }
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
             super.onServicesDiscovered(gatt, status)
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                Log.i("DeviceActivity", "Services discovered succesfully")
-                //char()
-                enableNotification(UUID_Button_Service,UUID_Button)// notificaties voor button werken
-
-                writeConfig(UUID_TempService, UUID_TempConfig)
-                enableNotification(UUID_TempService, UUID_TempData)
-
-                /*writeConfig(UUID_Lux_Service, UUID_Lux_Config)
-                enableNotification(UUID_Lux_Service, UUID_Lux_Data)*/
+                enableNotification(UUID_Button_Service,UUID_Button)
+                enableTempSensor()
             }
         }
 
@@ -141,25 +121,17 @@ class DeviceActivity : AppCompatActivity() {
             characteristic: BluetoothGattCharacteristic?
         ) {
             super.onCharacteristicChanged(gatt, characteristic)
-            Log.i("DeviceActivity", "${characteristic?.uuid.toString()}")
             if(characteristic?.uuid== UUID_TempData) {
-                Log.i("DeviceActivity", "characteristic changed ${characteristic?.value?.size}")
                 val temp=characteristic?.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0)
-                Log.i("DeviceActivity", "temp is $temp")
-                //binding.barometerTextView.text=(temp!!/100.0).toString()
+                val tempInCelsius:Double=convertTemptoCelsius(temp!!)
                 runOnUiThread(Runnable {
-                    binding.tvTemp.text=characteristic?.value?.get(0).toString()
+                    binding.tvTemp.text="$tempInCelsius °C"
                 })
             }else if(characteristic?.uuid== UUID_Button){
                 runOnUiThread(Runnable {
                     binding.tvButton.text=characteristic?.value?.get(0).toString()
                 })
-            }/*else if(characteristic?.uuid== UUID_Lux_Data){
-                Log.i("DeviceActivity", "characteristic changed ${characteristic?.value?.size}")
-                /*runOnUiThread(Runnable {
-                    binding.tvButton.text=characteristic?.value?.get(0).toString()
-                })*/
-            }*/
+            }
         }
     }
 }

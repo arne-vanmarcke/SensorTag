@@ -9,8 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.*
-import android.util.Log
-import android.widget.TextView
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -24,36 +22,31 @@ import java.util.*
 
 private const val ENABLE_BLUETOOTH_REQUEST_CODE = 1
 private const val LOCATION_PERMISSION_REQUEST_CODE = 2
-//private const val MyAddress :String  = "B0:B4:48:BF:B5:03"
-var list : MutableList<Device> = arrayListOf()
-private lateinit var BTdevice : BluetoothDevice
+var deviceList : MutableList<Device> = arrayListOf()
 
 class MainActivity : AppCompatActivity() {
 
     private val bluetoothAdapter: BluetoothAdapter by lazy {
-        val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        val bluetoothManager = getSystemService(BLUETOOTH_SERVICE) as BluetoothManager
         bluetoothManager.adapter
     }
-
-    public var liste: MutableList<Int> = arrayListOf();
-
-    fun byteArrayOfInts(vararg ints: Int) = ByteArray(ints.size) { pos -> ints[pos].toByte() }
-    val arr = byteArrayOfInts(0x01)
 
     private val bleScanner by lazy {
         bluetoothAdapter.bluetoothLeScanner
     }
 
     val deviceClicked = { device: Device ->
-        //Toast.makeText(this, "Clicked on device Name: ${device.btdevice.name ?: "Unnamed"}, address: ${device.btdevice.address}",Toast.LENGTH_SHORT).show()
         stopBleScan()
+
+        val size:Int= deviceList.size
+        deviceList.clear()
+        adresses.clear()
+        binding.rvdevicelist.adapter?.notifyItemRangeRemoved(0,size);
+
         intent = Intent(this,DeviceActivity::class.java)
         intent.putExtra("device",device.btdevice)
         startActivity(intent)
-    }
 
-    fun Logger(message: String){
-        Log.d("log", message)
     }
 
     @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
@@ -66,15 +59,10 @@ class MainActivity : AppCompatActivity() {
         @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             with(result.device) {
-                Log.i(
-                        "ScanCallback",
-                        "Found BLE device Name: ${name ?: "Unnamed"}, address: $address"
-                )
                 if (!adresses.contains(address) && result.device!=null) {
                     adresses.add(address)
-                    Log.d("adress", "created device with address $address")
-                    list.add(Device(result.device))
-                    binding.rvdevicelist.adapter = DeviceAdapter(list, deviceClicked)
+                    deviceList.add(Device(result.device))
+                    binding.rvdevicelist.adapter = DeviceAdapter(deviceList, deviceClicked)
                     binding.rvdevicelist.layoutManager= LinearLayoutManager(this@MainActivity)
                 }
             }
@@ -85,6 +73,11 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !isLocationPermissionGranted) {
             requestLocationPermission()
         } else {
+            val size:Int= deviceList.size
+            deviceList.clear()
+            adresses.clear()
+            binding.rvdevicelist.adapter?.notifyItemRangeRemoved(0,size);
+
             bleScanner.startScan(null, scanSettings, scanCallback)
             isScanning = true
         }
@@ -118,7 +111,6 @@ class MainActivity : AppCompatActivity() {
         val view = binding.root
         setContentView(view)
         binding.scanButton.setOnClickListener {
-            //Toast.makeText(this,"Clicked on SCAN button", Toast.LENGTH_LONG).show()
             if (isScanning) {
                 stopBleScan()
             } else {
@@ -129,13 +121,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        //check if bluetooth is enabled
         if (!bluetoothAdapter.isEnabled) {
             promptEnableBluetooth()
         }
     }
 
-    //request to enable bluetooth
     private fun promptEnableBluetooth() {
         if (!bluetoothAdapter.isEnabled) {
             val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
@@ -147,12 +137,6 @@ class MainActivity : AppCompatActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         if(requestCode== ENABLE_BLUETOOTH_REQUEST_CODE)
         {
-            Log.v(
-                    "ENABLE BT", when (resultCode) {
-                android.app.Activity.RESULT_OK -> "BT enabled"
-                else -> "BT not enabled"
-            }
-            )
         }
     }
 
@@ -200,11 +184,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onRequestPermissionsResult(
-            requestCode: Int,
-            permissions: Array<out String>,
-            grantResults: IntArray
-    ) {
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         //super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
             // Request for camera permission.
