@@ -8,13 +8,17 @@
         android:layout_height="match_parent"
         android:layout_marginLeft="10dp"
         android:layout_marginRight="10dp"
-        android:orientation="vertical">
+        android:layout_marginTop="5dp"
+        android:orientation="vertical"
+        android:background="@drawable/background">
 
         <TextView
             android:id="@+id/deviceName"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Name"
+            android:layout_marginLeft="2dp"
+            android:textColor="@color/black"
             android:textSize="25sp"/>
 
         <TextView
@@ -22,6 +26,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="TextView"
-            android:textSize="15sp"/>
+            android:paddingLeft="2dp"
+            android:textColor="@color/black"
+            android:textSize="15sp"
+            android:background="@drawable/background"/>
     </LinearLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>
