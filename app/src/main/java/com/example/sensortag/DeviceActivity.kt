@@ -67,6 +67,7 @@ class DeviceActivity : AppCompatActivity() {
         val setValueSuccess = characteristic?.setValue(byteArrayOf(0x01))
         Log.i("CONF_LOCAL", setValueSuccess.toString())
         characteristic?.writeType=BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        Thread.sleep(1000)
         val writeSuccess = bleGatt?.writeCharacteristic(characteristic)//writesucces wordt false
         Log.i("CONF_WRITE", writeSuccess.toString())
     }
